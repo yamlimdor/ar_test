@@ -50,27 +50,38 @@
                 const captureButton = document.getElementById('capture-button');
                 
                 captureButton.addEventListener('click', () => {
-                    const scene = document.querySelector('a-scene');
-                    const canvas = scene.canvas;
+                    const video = document.querySelector('video');
+                    const sceneCanvas = document.querySelector('a-scene').canvas;
+                    
+                    if (!video || !sceneCanvas) {
+                        console.error('Video or scene canvas not found.');
+                        return;
+                    }
 
-                    if (canvas) {
-                        // **重要**: 描画が完了するまで待機
-                        // A-Frameのレンダリングイベントを監視
-                        scene.renderer.render(scene.object3D, scene.camera);
+                    // 合成用の新しいCanvasを作成
+                    const combinedCanvas = document.createElement('canvas');
+                    combinedCanvas.width = video.videoWidth;
+                    combinedCanvas.height = video.videoHeight;
+                    const ctx = combinedCanvas.getContext('2d');
+                    
+                    // 1. カメラ映像を新しいCanvasに描画
+                    ctx.drawImage(video, 0, 0, combinedCanvas.width, combinedCanvas.height);
+                    
+                    // 2. ARコンテンツが描画されているCanvasを、その上に描画
+                    // AR.jsのCanvasは透明なので、この描画でARオブジェクトだけが重ねられる
+                    ctx.drawImage(sceneCanvas, 0, 0, combinedCanvas.width, combinedCanvas.height);
 
-                        // toDataURL を使って、Canvasの内容を直接取得
-                        // preserveDrawingBuffer が有効なため、この方法が最も確実
-                        const dataURL = canvas.toDataURL('image/png');
-                        
+                    // 3. 合成されたCanvasから画像をダウンロード
+                    combinedCanvas.toBlob((blob) => {
+                        const url = URL.createObjectURL(blob);
                         const a = document.createElement('a');
-                        a.href = dataURL;
+                        a.href = url;
                         a.download = 'ar-photo.png';
-                        
                         document.body.appendChild(a);
                         a.click();
-                        
                         document.body.removeChild(a);
-                    }
+                        URL.revokeObjectURL(url);
+                    }, 'image/png');
                 });
             });
         </script>
