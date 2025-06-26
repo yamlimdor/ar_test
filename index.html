@@ -1,12 +1,10 @@
 <!DOCTYPE html>
 <html>
     <head>
-        <script src="https://aframe.io/releases/1.0.4/aframe.min.js"></script>
-        <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
-        <script src="https://raw.githack.com/AR-js-org/studio-backend/master/src/modules/marker/tools/gesture-detector.js"></script>
-        <script src="https://raw.githack.com/AR-js-org/studio-backend/master/src/modules/marker/tools/gesture-handler.js"></script>
-
-        <script src="https://unpkg.com/aframe-extras.mandarin@6.1.1/dist/aframe-extras.min.js"></script>
+        <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+        <script src="https://raw.githack.com/AR-js-org/AR.js/3.4.2/aframe/build/aframe-ar.js"></script>
+        
+        <title>AR Photo Test</title>
     </head>
 
     <body style="margin: 0; overflow: hidden;">
@@ -16,7 +14,6 @@
             arjs="trackingMethod: best; sourceType: webcam; debugUIEnabled: false;"
             id="scene"
             embedded
-            gesture-detector
             renderer="logarithmicDepthBuffer: true; antialias: true; alpha: true; precision: mediump; preserveDrawingBuffer: true;"
         >
             <a-marker
@@ -24,18 +21,12 @@
                 type="pattern"
                 preset="custom"
                 url="assets/marker.patt"
-                raycaster="objects: .clickable"
-                emitevents="true"
-                cursor="fuse: false; rayOrigin: mouse;"
-                id="markerA"
             >
                 <a-image
                     src="assets/asset.png"
                     scale="2 2 1"
-                    class="clickable"
                     rotation="-90 0 0"
                     position="0 1 0"
-                    gesture-handler
                 ></a-image>
             </a-marker>
 
@@ -52,24 +43,25 @@
                 const captureButton = document.getElementById('capture-button');
                 const sceneEl = document.querySelector('a-scene');
 
-                captureButton.addEventListener('click', () => {
-                    // A-Frameのスクリーンショット機能を呼び出す
-                    // 1フレーム待ってから実行することで、描画の安定性を確保
-                    setTimeout(() => {
-                        sceneEl.systems['screenshot'].capture('perspective');
-                    }, 500); // 0.5秒待機
-                });
+                // A-Frameのスクリーンショットコンポーネントを初期化
+                if (!sceneEl.components.screenshot) {
+                    sceneEl.setAttribute('screenshot', 'width: 1920; height: 1080;'); // コンポーネントをアタッチ
+                }
 
-                // A-Frameのスクリーンショットコンポーネントが画像をキャプチャした後のイベント
-                // このイベントをリッスンして、画像をダウンロードする
-                sceneEl.addEventListener('screenshot-capture', function(e) {
-                    const dataURL = e.detail.src;
-                    const a = document.createElement('a');
-                    a.href = dataURL;
-                    a.download = 'ar-photo.png';
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
+                captureButton.addEventListener('click', () => {
+                    // A-Frameのキャプチャメソッドを呼び出し
+                    const dataURL = sceneEl.components.screenshot.capture('perspective');
+
+                    if (dataURL) {
+                        const a = document.createElement('a');
+                        a.href = dataURL;
+                        a.download = 'ar-photo.png';
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                    } else {
+                        console.error('Failed to capture screenshot. dataURL is empty.');
+                    }
                 });
             });
         </script>
