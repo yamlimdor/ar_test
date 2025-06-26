@@ -5,6 +5,8 @@
         <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
         <script src="https://raw.githack.com/AR-js-org/studio-backend/master/src/modules/marker/tools/gesture-detector.js"></script>
         <script src="https://raw.githack.com/AR-js-org/studio-backend/master/src/modules/marker/tools/gesture-handler.js"></script>
+
+        <script src="https://unpkg.com/aframe-extras.mandarin@6.1.1/dist/aframe-extras.min.js"></script>
     </head>
 
     <body style="margin: 0; overflow: hidden;">
@@ -48,40 +50,26 @@
         <script>
             document.addEventListener('DOMContentLoaded', () => {
                 const captureButton = document.getElementById('capture-button');
-                
+                const sceneEl = document.querySelector('a-scene');
+
                 captureButton.addEventListener('click', () => {
-                    const video = document.querySelector('video');
-                    const sceneCanvas = document.querySelector('a-scene').canvas;
-                    
-                    if (!video || !sceneCanvas) {
-                        console.error('Video or scene canvas not found.');
-                        return;
-                    }
+                    // A-Frameのスクリーンショット機能を呼び出す
+                    // 1フレーム待ってから実行することで、描画の安定性を確保
+                    setTimeout(() => {
+                        sceneEl.systems['screenshot'].capture('perspective');
+                    }, 500); // 0.5秒待機
+                });
 
-                    // 合成用の新しいCanvasを作成
-                    const combinedCanvas = document.createElement('canvas');
-                    combinedCanvas.width = video.videoWidth;
-                    combinedCanvas.height = video.videoHeight;
-                    const ctx = combinedCanvas.getContext('2d');
-                    
-                    // 1. カメラ映像を新しいCanvasに描画
-                    ctx.drawImage(video, 0, 0, combinedCanvas.width, combinedCanvas.height);
-                    
-                    // 2. ARコンテンツが描画されているCanvasを、その上に描画
-                    // AR.jsのCanvasは透明なので、この描画でARオブジェクトだけが重ねられる
-                    ctx.drawImage(sceneCanvas, 0, 0, combinedCanvas.width, combinedCanvas.height);
-
-                    // 3. 合成されたCanvasから画像をダウンロード
-                    combinedCanvas.toBlob((blob) => {
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement('a');
-                        a.href = url;
-                        a.download = 'ar-photo.png';
-                        document.body.appendChild(a);
-                        a.click();
-                        document.body.removeChild(a);
-                        URL.revokeObjectURL(url);
-                    }, 'image/png');
+                // A-Frameのスクリーンショットコンポーネントが画像をキャプチャした後のイベント
+                // このイベントをリッスンして、画像をダウンロードする
+                sceneEl.addEventListener('screenshot-capture', function(e) {
+                    const dataURL = e.detail.src;
+                    const a = document.createElement('a');
+                    a.href = dataURL;
+                    a.download = 'ar-photo.png';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
                 });
             });
         </script>
