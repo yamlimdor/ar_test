@@ -15,6 +15,7 @@
             id="scene"
             embedded
             gesture-detector
+            renderer="logarithmicDepthBuffer: true; antialias: true; alpha: true; precision: mediump; preserveDrawingBuffer: true;"
         >
             <a-marker
                 id="animated-marker"
@@ -49,42 +50,27 @@
                 const captureButton = document.getElementById('capture-button');
                 
                 captureButton.addEventListener('click', () => {
-                    // ① 撮影用のCanvas要素を新しく作成
-                    const combinedCanvas = document.createElement('canvas');
-                    const video = document.querySelector('video'); // カメラ映像のvideo要素を取得
-                    const sceneCanvas = document.querySelector('a-scene').canvas; // ARオブジェクトが描画されているCanvasを取得
+                    const scene = document.querySelector('a-scene');
+                    const canvas = scene.canvas;
 
-                    if (!video || !sceneCanvas) {
-                        console.error('Video or scene canvas not found.');
-                        return;
-                    }
+                    if (canvas) {
+                        // **重要**: 描画が完了するまで待機
+                        // A-Frameのレンダリングイベントを監視
+                        scene.renderer.render(scene.object3D, scene.camera);
 
-                    // ② 新しいCanvasのサイズをカメラ映像に合わせる
-                    combinedCanvas.width = video.videoWidth;
-                    combinedCanvas.height = video.videoHeight;
-                    const ctx = combinedCanvas.getContext('2d');
-
-                    // ③ カメラ映像を新しいCanvasに描画
-                    // ここが重要！これによりカメラ映像とARが同じCanvasに描画される
-                    ctx.drawImage(video, 0, 0, combinedCanvas.width, combinedCanvas.height);
-
-                    // ④ その上にARオブジェクトが描画されているCanvasの内容を重ねて描画
-                    ctx.drawImage(sceneCanvas, 0, 0, combinedCanvas.width, combinedCanvas.height);
-
-                    // ⑤ Canvasの内容を画像データとしてダウンロード
-                    combinedCanvas.toBlob((blob) => {
-                        const url = URL.createObjectURL(blob);
+                        // toDataURL を使って、Canvasの内容を直接取得
+                        // preserveDrawingBuffer が有効なため、この方法が最も確実
+                        const dataURL = canvas.toDataURL('image/png');
                         
                         const a = document.createElement('a');
-                        a.href = url;
+                        a.href = dataURL;
                         a.download = 'ar-photo.png';
                         
                         document.body.appendChild(a);
                         a.click();
                         
                         document.body.removeChild(a);
-                        URL.revokeObjectURL(url);
-                    }, 'image/png');
+                    }
                 });
             });
         </script>
