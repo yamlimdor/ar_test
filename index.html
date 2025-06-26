@@ -1,68 +1,74 @@
-<a-scene
-    vr-mode-ui="enabled: false;"
-    loading-screen="enabled: false;"
-    arjs="trackingMethod: best; sourceType: webcam; debugUIEnabled: false;"
-    renderer="antialias: true; alpha: true; precision: mediump; preserveDrawingBuffer: true;"
-    id="scene"
-    embedded
-    gesture-detector
->
-    <a-marker
-        id="animated-marker"
-        type="pattern"
-        preset="custom"
-        url="assets/marker.patt"
-        raycaster="objects: .clickable"
-        emitevents="true"
-        cursor="fuse: false; rayOrigin: mouse;"
-        id="markerA"
-    >
-        <a-image
-            src="assets/asset.png"
-            scale="2 2 1"
-            class="clickable"
-            rotation="-90 0 0"
-            position="0 1 0"
-            gesture-handler
-        ></a-image>
-    </a-marker>
+<!DOCTYPE html>
+<html>
+    <head>
+        <script src="https://aframe.io/releases/1.0.4/aframe.min.js"></script>
+        <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
+        <script src="https://raw.githack.com/AR-js-org/studio-backend/master/src/modules/marker/tools/gesture-detector.js"></script>
+        <script src="https://raw.githack.com/AR-js-org/studio-backend/master/src/modules/marker/tools/gesture-handler.js"></script>
+    </head>
 
-    <a-entity camera></a-entity>
-</a-scene>
+    <body style="margin: 0; overflow: hidden;">
+        <a-scene
+            vr-mode-ui="enabled: false;"
+            loading-screen="enabled: false;"
+            arjs="trackingMethod: best; sourceType: webcam; debugUIEnabled: false;"
+            id="scene"
+            embedded
+            gesture-detector
+        >
+            <a-marker
+                id="animated-marker"
+                type="pattern"
+                preset="custom"
+                url="assets/marker.patt"
+                raycaster="objects: .clickable"
+                emitevents="true"
+                cursor="fuse: false; rayOrigin: mouse;"
+                id="markerA"
+            >
+                <a-image
+                    src="assets/asset.png"
+                    scale="2 2 1"
+                    class="clickable"
+                    rotation="-90 0 0"
+                    position="0 1 0"
+                    gesture-handler
+                ></a-image>
+            </a-marker>
 
-<button id="capture-button" 
-        style="position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 100; font-size: 24px; padding: 15px 30px; border-radius: 50px; background-color: white; border: 2px solid #333; cursor: pointer; font-family: sans-serif; box-shadow: 0 4px 8px rgba(0,0,0,0.2);">
-    📸 Take Photo
-</button>
+            <a-entity camera></a-entity>
+        </a-scene>
 
-<script>
-    document.addEventListener('DOMContentLoaded', () => {
-        const captureButton = document.getElementById('capture-button');
-        
-        captureButton.addEventListener('click', () => {
-            // A-Frameのcanvas要素を取得
-            const scene = document.querySelector('a-scene');
-            const canvas = scene.canvas;
-            
-            if (canvas) {
-                // toBlob() を使用して、非同期で画像データを取得
-                canvas.toBlob((blob) => {
-                    const url = URL.createObjectURL(blob);
+        <button id="capture-button" 
+                style="position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 100; font-size: 24px; padding: 15px 30px; border-radius: 50px; background-color: white; border: 2px solid #333; cursor: pointer; font-family: sans-serif; box-shadow: 0 4px 8px rgba(0,0,0,0.2);">
+            📸 Take Photo
+        </button>
+
+        <script>
+            document.addEventListener('DOMContentLoaded', () => {
+                const captureButton = document.getElementById('capture-button');
+                
+                captureButton.addEventListener('click', () => {
+                    // a-scene要素のcanvasを取得
+                    const scene = document.querySelector('a-scene');
+                    const canvas = scene.canvas;
                     
-                    // ダウンロード用のリンクを作成
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = 'ar-photo.png';
-                    
-                    // リンクを一時的にDOMに追加してクリック
-                    document.body.appendChild(a);
-                    a.click();
-                    
-                    // 後片付け
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(url); // URLを解放
+                    if (canvas) {
+                        // 少し待ってからキャプチャを実行
+                        setTimeout(() => {
+                            const dataURL = canvas.toDataURL('image/png');
+                            const a = document.createElement('a');
+                            a.href = dataURL;
+                            a.download = 'ar-photo.png';
+                            
+                            document.body.appendChild(a);
+                            a.click();
+                            
+                            document.body.removeChild(a);
+                        }, 500); // 500ミリ秒（0.5秒）待つ
+                    }
                 });
-            }
-        });
-    });
-</script>
+            });
+        </script>
+    </body>
+</html>
