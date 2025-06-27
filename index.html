@@ -5,38 +5,12 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
         <script src="https://raw.githack.com/AR-js-org/AR.js/3.4.2/aframe/build/aframe-ar.js"></script>
-        <!-- html2canvasライブラリを読み込みます -->
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
         
         <title>AR Photo Test</title>
         <style>
-            body {
-                margin: 0;
-                overflow: hidden;
-            }
-            /* 背景に表示するためのCanvas */
-            #video-background {
-                position: absolute;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                object-fit: cover;
-                z-index: 1; /* ARオブジェクトより後ろに配置 */
-            }
-            /* A-Frameのシーン（ARオブジェクト） */
-            #scene {
-                position: absolute;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                z-index: 2; /* 背景Canvasより手前に配置 */
-            }
-            /* AR.jsが自動生成するオリジナルのvideo要素を非表示にする */
-            video[playsinline] {
-                display: none !important;
-            }
+            /* AR.jsにレイアウトを任せるため、body以外のスタイルは削除 */
+            body { margin: 0; overflow: hidden; }
+
             /* 撮影ボタン */
             #capture-button {
                 position: fixed;
@@ -57,10 +31,7 @@
     </head>
 
     <body>
-        <!-- カメラ映像をミラーリングするための背景Canvas -->
-        <canvas id="video-background"></canvas>
-
-        <!-- A-FrameのARシーン -->
+        <!-- 複雑なレイアウトは不要。AR.jsがビデオ要素を自動で生成し、シーンの背景に配置します -->
         <a-scene
             vr-mode-ui="enabled: false;"
             loading-screen="enabled: false;"
@@ -99,67 +70,52 @@
             window.addEventListener('load', () => {
                 const sceneEl = document.querySelector('a-scene');
                 const captureButton = document.getElementById('capture-button');
-                const videoBackground = document.getElementById('video-background');
-                const bgCtx = videoBackground.getContext('2d');
-
-                // AR.jsのカメラ映像(<video>)を背景の<canvas>にミラーリングする
-                const setupVideoMirror = () => {
-                    const video = document.querySelector('video[playsinline]');
-                    if (!video) {
-                        // video要素が見つからない場合は少し待って再試行
-                        setTimeout(setupVideoMirror, 100);
-                        return;
-                    }
-
-                    // ビデオの再生が本当に開始されたら、ミラーリングループを開始する
-                    video.addEventListener('playing', () => {
-                        console.log("ビデオの再生を検知しました。ミラーリングを開始します。");
-
-                        // ビデオのサイズが確定したこのタイミングで、背景Canvasのサイズを一度だけ設定
-                        videoBackground.width = video.videoWidth;
-                        videoBackground.height = video.videoHeight;
-
-                        const renderLoop = () => {
-                            // ビデオが停止していなければ、フレームを背景Canvasにコピーし続ける
-                            if (!video.paused && !video.ended) {
-                                bgCtx.drawImage(video, 0, 0, videoBackground.width, videoBackground.height);
-                            }
-                            requestAnimationFrame(renderLoop);
-                        };
-                        renderLoop();
-                    }, { once: true }); // このイベントは一度だけ実行されれば良い
-                };
-
-                // ARシーンがロードされたらミラーリングを開始
-                sceneEl.addEventListener('loaded', setupVideoMirror);
 
                 // 撮影処理
                 captureButton.addEventListener('click', () => {
-                    // この方法はhtml2canvasを使いません。
-                    // 2つのCanvas（背景用とAR用）を直接合成します。
+                    // AR.jsが生成した<video>要素と、A-Frameの<canvas>を取得
+                    const video = document.querySelector('video');
+                    const arCanvas = sceneEl.canvas;
 
-                    const arCanvas = sceneEl.canvas; // ARオブジェクトが描画されているCanvas
-
-                    if (!videoBackground.width || !videoBackground.height || !arCanvas) {
-                        console.error("Canvasの準備ができていません。");
-                        alert("撮影の準備ができていません。少し待ってからもう一度お試しください。");
+                    if (!video || !arCanvas) {
+                        console.error('カメラ映像またはARキャンバスが見つかりません。');
                         return;
                     }
 
-                    // 合成用の一時的なCanvasを作成
+                    // カメラ映像が再生可能かチェック
+                    if (video.readyState < 2) { // HAVE_CURRENT_DATA より小さい場合
+                         console.error("カメラ映像の準備ができていません。");
+                         alert("カメラの準備ができていません。少し待ってからもう一度お試しください。");
+                         return;
+                    }
+
+                    // 合成用キャンバスを作成
                     const compositeCanvas = document.createElement('canvas');
                     const compositeCtx = compositeCanvas.getContext('2d');
 
-                    // サイズを合わせる
+                    // 合成キャンバスのサイズを、画面に表示されているARキャンバスに合わせる
                     compositeCanvas.width = arCanvas.width;
                     compositeCanvas.height = arCanvas.height;
 
-                    // 1. 背景用のCanvas（カメラ映像）を描画
-                    compositeCtx.drawImage(videoBackground, 0, 0, arCanvas.width, arCanvas.height);
+                    // 1. 背景としてカメラ映像を描画
+                    // ユーザーが見ている映像と一致させるため、アスペクト比を維持し中央から切り取る（object-fit: coverと同じ効果）
+                    const videoAspect = video.videoWidth / video.videoHeight;
+                    const canvasAspect = arCanvas.width / arCanvas.height;
+                    let sX = 0, sY = 0, sWidth = video.videoWidth, sHeight = video.videoHeight;
+
+                    if (videoAspect > canvasAspect) { // ビデオが横長の場合
+                        sWidth = video.videoHeight * canvasAspect;
+                        sX = (video.videoWidth - sWidth) / 2;
+                    } else { // ビデオが縦長の場合
+                        sHeight = video.videoWidth / canvasAspect;
+                        sY = (video.videoHeight - sHeight) / 2;
+                    }
+                    compositeCtx.drawImage(video, sX, sY, sWidth, sHeight, 0, 0, arCanvas.width, arCanvas.height);
+
                     // 2. ARオブジェクト用のCanvasを上に重ねて描画
                     compositeCtx.drawImage(arCanvas, 0, 0, arCanvas.width, arCanvas.height);
 
-                    // 合成したCanvasから画像データを生成してダウンロード
+                    // 合成した画像をダウンロード
                     const dataURL = compositeCanvas.toDataURL('image/png');
                     const a = document.createElement('a');
                     a.href = dataURL;
