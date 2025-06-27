@@ -1,13 +1,66 @@
 <!DOCTYPE html>
 <html>
     <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
         <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
         <script src="https://raw.githack.com/AR-js-org/AR.js/3.4.2/aframe/build/aframe-ar.js"></script>
+        <!-- html2canvasライブラリを読み込みます -->
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
         
         <title>AR Photo Test</title>
+        <style>
+            body {
+                margin: 0;
+                overflow: hidden;
+            }
+            /* 背景に表示するためのCanvas */
+            #video-background {
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                object-fit: cover;
+                z-index: 1; /* ARオブジェクトより後ろに配置 */
+            }
+            /* A-Frameのシーン（ARオブジェクト） */
+            #scene {
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                z-index: 2; /* 背景Canvasより手前に配置 */
+            }
+            /* AR.jsが自動生成するオリジナルのvideo要素を非表示にする */
+            video[playsinline] {
+                display: none !important;
+            }
+            /* 撮影ボタン */
+            #capture-button {
+                position: fixed;
+                bottom: 20px;
+                left: 50%;
+                transform: translateX(-50%);
+                z-index: 100; /* 最前面に配置 */
+                font-size: 24px;
+                padding: 15px 30px;
+                border-radius: 50px;
+                background-color: white;
+                border: 2px solid #333;
+                cursor: pointer;
+                font-family: sans-serif;
+                box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            }
+        </style>
     </head>
 
-    <body style="margin: 0; overflow: hidden;">
+    <body>
+        <!-- カメラ映像をミラーリングするための背景Canvas -->
+        <canvas id="video-background"></canvas>
+
+        <!-- A-FrameのARシーン -->
         <a-scene
             vr-mode-ui="enabled: false;"
             loading-screen="enabled: false;"
@@ -21,47 +74,97 @@
                 type="pattern"
                 preset="custom"
                 url="assets/marker.patt"
+                raycaster="objects: .clickable"
+                emitevents="true"
+                cursor="fuse: false; rayOrigin: mouse;"
             >
                 <a-image
                     src="assets/asset.png"
                     scale="2 2 1"
                     rotation="-90 0 0"
                     position="0 1 0"
+                    class="clickable"
                 ></a-image>
             </a-marker>
 
             <a-entity camera></a-entity>
         </a-scene>
 
-        <button id="capture-button" 
-                style="position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 100; font-size: 24px; padding: 15px 30px; border-radius: 50px; background-color: white; border: 2px solid #333; cursor: pointer; font-family: sans-serif; box-shadow: 0 4px 8px rgba(0,0,0,0.2);">
+        <!-- 撮影ボタン -->
+        <button id="capture-button">
             📸 Take Photo
         </button>
 
         <script>
-            document.addEventListener('DOMContentLoaded', () => {
-                const captureButton = document.getElementById('capture-button');
+            window.addEventListener('load', () => {
                 const sceneEl = document.querySelector('a-scene');
+                const captureButton = document.getElementById('capture-button');
+                const videoBackground = document.getElementById('video-background');
+                const bgCtx = videoBackground.getContext('2d');
 
-                // A-Frameのスクリーンショットコンポーネントを初期化
-                if (!sceneEl.components.screenshot) {
-                    sceneEl.setAttribute('screenshot', 'width: 1920; height: 1080;'); // コンポーネントをアタッチ
-                }
-
-                captureButton.addEventListener('click', () => {
-                    // A-Frameのキャプチャメソッドを呼び出し
-                    const dataURL = sceneEl.components.screenshot.capture('perspective');
-
-                    if (dataURL) {
-                        const a = document.createElement('a');
-                        a.href = dataURL;
-                        a.download = 'ar-photo.png';
-                        document.body.appendChild(a);
-                        a.click();
-                        document.body.removeChild(a);
-                    } else {
-                        console.error('Failed to capture screenshot. dataURL is empty.');
+                // AR.jsのカメラ映像(<video>)を背景の<canvas>にミラーリングする
+                const setupVideoMirror = () => {
+                    const video = document.querySelector('video[playsinline]');
+                    if (!video) {
+                        // video要素が見つからない場合は少し待って再試行
+                        setTimeout(setupVideoMirror, 100);
+                        return;
                     }
+
+                    // ビデオの再生が本当に開始されたら、ミラーリングループを開始する
+                    video.addEventListener('playing', () => {
+                        console.log("ビデオの再生を検知しました。ミラーリングを開始します。");
+
+                        // ビデオのサイズが確定したこのタイミングで、背景Canvasのサイズを一度だけ設定
+                        videoBackground.width = video.videoWidth;
+                        videoBackground.height = video.videoHeight;
+
+                        const renderLoop = () => {
+                            // ビデオが停止していなければ、フレームを背景Canvasにコピーし続ける
+                            if (!video.paused && !video.ended) {
+                                bgCtx.drawImage(video, 0, 0, videoBackground.width, videoBackground.height);
+                            }
+                            requestAnimationFrame(renderLoop);
+                        };
+                        renderLoop();
+                    }, { once: true }); // このイベントは一度だけ実行されれば良い
+                };
+
+                // ARシーンがロードされたらミラーリングを開始
+                sceneEl.addEventListener('loaded', setupVideoMirror);
+
+                // 撮影処理
+                captureButton.addEventListener('click', () => {
+                    // この方法はhtml2canvasを使いません。
+                    // 2つのCanvas（背景用とAR用）を直接合成します。
+
+                    const arCanvas = sceneEl.canvas; // ARオブジェクトが描画されているCanvas
+
+                    if (!videoBackground.width || !videoBackground.height || !arCanvas) {
+                        console.error("Canvasの準備ができていません。");
+                        alert("撮影の準備ができていません。少し待ってからもう一度お試しください。");
+                        return;
+                    }
+
+                    // 合成用の一時的なCanvasを作成
+                    const compositeCanvas = document.createElement('canvas');
+                    const compositeCtx = compositeCanvas.getContext('2d');
+
+                    // サイズを合わせる
+                    compositeCanvas.width = arCanvas.width;
+                    compositeCanvas.height = arCanvas.height;
+
+                    // 1. 背景用のCanvas（カメラ映像）を描画
+                    compositeCtx.drawImage(videoBackground, 0, 0, arCanvas.width, arCanvas.height);
+                    // 2. ARオブジェクト用のCanvasを上に重ねて描画
+                    compositeCtx.drawImage(arCanvas, 0, 0, arCanvas.width, arCanvas.height);
+
+                    // 合成したCanvasから画像データを生成してダウンロード
+                    const dataURL = compositeCanvas.toDataURL('image/png');
+                    const a = document.createElement('a');
+                    a.href = dataURL;
+                    a.download = 'ar-photo.png';
+                    a.click();
                 });
             });
         </script>
